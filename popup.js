@@ -15,10 +15,9 @@
       defaultBadge: "Recommended",
       defaultDesc: "Direct HowLongToBeat lookup. Works without any other extensions and uses Steam's current regional price.",
       advancedName: "Advanced",
-      advancedBadge: "SteamDB + HLTB",
-      advancedDesc: "Reads HLTB and SteamDB blocks rendered on the store page. Shows SteamDB's 2-year low record price.",
-      depsTitle: "Requires page extensions:",
-      depAsHint: "(for HLTB block)",
+      advancedBadge: "+ SteamDB",
+      advancedDesc: "Direct HowLongToBeat lookup plus SteamDB's 2-year low record price.",
+      depsTitle: "Requires page extension:",
       depSdbHint: "(for 2-year low)",
       optionsLink: "Full settings",
       saved: "Mode saved."
@@ -30,10 +29,9 @@
       defaultBadge: "Рекомендуется",
       defaultDesc: "Прямой запрос к HowLongToBeat. Работает без сторонних расширений и использует региональную цену Steam.",
       advancedName: "Расширенный",
-      advancedBadge: "SteamDB + HLTB",
-      advancedDesc: "Считывает блоки HLTB и SteamDB со страницы магазина. Добавляет колонку рекордно низкой цены за 2 года.",
-      depsTitle: "Требуются установленные расширения:",
-      depAsHint: "(для блока HLTB)",
+      advancedBadge: "+ SteamDB",
+      advancedDesc: "Прямой запрос к HowLongToBeat плюс колонка рекордно низкой цены за 2 года из блока SteamDB.",
+      depsTitle: "Требуется расширение на странице:",
       depSdbHint: "(для минимума за 2 года)",
       optionsLink: "Все настройки",
       saved: "Режим сохранён."
@@ -57,7 +55,6 @@
     setText("mode-advanced-badge", texts.advancedBadge);
     setText("mode-advanced-desc", texts.advancedDesc);
     setText("deps-title", texts.depsTitle);
-    setText("dep-as-hint", texts.depAsHint);
     setText("dep-sdb-hint", texts.depSdbHint);
     setText("options-link-text", texts.optionsLink);
   }

@@ -7,27 +7,10 @@
     ".game_area_purchase_game_wrapper .discount_final_price",
     ".game_area_purchase_game_wrapper .game_purchase_price"
   ];
-  const HLTB_METRICS = [
-    {
-      displayLabel: "Main Story",
-      matches: (text) => /^(?:main story|main|история|основна історія|hauptgeschichte|histoire principale|historia principal|główny wątek)\b(?!\s*(?:and extras|\+ extras|и другое|та інше|und extras|y extras|et extras|i dodatki))/i.test(text),
-      appearsIn: (text) => /\b(?:main story|основна історія|история|hauptgeschichte|histoire principale|historia principal|główny wątek)\b(?!\s*(?:and extras|\+ extras|и другое|та інше|und extras|y extras|et extras|i dodatki))/i.test(text)
-    },
-    {
-      displayLabel: "Story and Extras",
-      matches: (text) => /^(?:main story and extras|main \+ extras|story and extras|история и другое|історія та інше|hauptgeschichte und extras|histoire principale et extras|historia y extras|główny wątek i dodatki)\b/i.test(text),
-      appearsIn: (text) => /\b(?:main story and extras|main \+ extras|story and extras|история и другое|історія та інше|hauptgeschichte und extras|histoire principale et extras|historia y extras|główny wątek i dodatki)\b/i.test(text)
-    },
-    {
-      displayLabel: "Completionist",
-      matches: (text) => /^(?:completionist|на 100%|100%|vervollständiger|completista|perfectionniste|kompletne ukończenie)\b/i.test(text),
-      appearsIn: (text) => /\b(?:completionist|на 100%|100%|vervollständiger|completista|perfectionniste|kompletne ukończenie)\b/i.test(text)
-    }
-  ];
   const api = globalThis.browser || globalThis.chrome || null;
   let settings = { mode: DEFAULT_MODE };
-  let standaloneData = null;
-  let standaloneRequestKey = null;
+  let hltbData = null;
+  let hltbRequestKey = null;
   let lastSignature = null;
   let scheduled = false;
   let renderTimer;
@@ -108,86 +91,12 @@
     return null;
   }
 
-  function parseHours(value) {
-    if (!value) return null;
-    const text = value.replace(/½/g, ".5").replace(",", ".");
-    const combined = text.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hours?|ч(?:ас(?:а|ов)?)?|год(?:ин[а-я]*)?|godz\.?|std\.?|ore|horas?|heures?)\D*(\d+)\s*(?:m|min|minutes?|м(?:ин)?|хв(?:ил[а-я]*)?)/i);
-    if (combined) return Number(combined[1]) + Number(combined[2]) / 60;
-    const single = text.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hours?|ч(?:ас(?:а|ов)?)?|год(?:ин[а-я]*)?|godz\.?|std\.?|ore|horas?|heures?)/i);
-    if (single) return Number(single[1]);
-    const fallback = text.match(/(\d+(?:\.\d+)?)/);
-    return fallback ? Number(fallback[1]) : null;
-  }
-
-  function getDomMetrics() {
-    const found = new Map();
-
-    // 1. Direct inspection of Augmented Steam container (.es_hltb)
-    const esHltb = document.querySelector(".es_hltb");
-    if (esHltb && isVisible(esHltb)) {
-      const rows = [...esHltb.querySelectorAll(".details_block b")];
-      rows.forEach((bEl, index) => {
-        const labelText = (bEl.textContent || "").toLowerCase().replace(/[:\s]+/g, " ").trim();
-        const valueText = bEl.nextElementSibling?.tagName === "SPAN"
-          ? (bEl.nextElementSibling.textContent || "")
-          : (bEl.nextSibling?.textContent || "");
-        const hours = parseHours(valueText);
-        if (!hours || hours <= 0) return;
-
-        let displayLabel;
-        if (/extra|другое|інше|zusatz|dodatk|\+|омаке|支线/i.test(labelText)) {
-          displayLabel = "Story and Extras";
-        } else if (/compl|100|complet|perfection|vollst|ukoń|완벽|完美/i.test(labelText)) {
-          displayLabel = "Completionist";
-        } else if (/main|история|історія|haupt|story|wątek|storia|histoire|historia/i.test(labelText)) {
-          displayLabel = "Main Story";
-        } else if (index === 0) {
-          displayLabel = "Main Story";
-        } else if (index === 1) {
-          displayLabel = "Story and Extras";
-        } else if (index === 2) {
-          displayLabel = "Completionist";
-        }
-
-        if (displayLabel && !found.has(displayLabel)) {
-          found.set(displayLabel, { displayLabel, hours });
-        }
-      });
-
-      if (found.size > 0) {
-        return HLTB_METRICS.map((metric) => found.get(metric.displayLabel)).filter(Boolean);
-      }
-    }
-
-    // 2. Generic TreeWalker fallback across the DOM
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-    while (walker.nextNode()) {
-      const element = walker.currentNode;
-      if (!(element instanceof HTMLElement) || !isVisible(element)) continue;
-      const text = (element.textContent || "").replace(/\s+/g, " ").trim();
-      if (text.length > 80) continue;
-      for (const metric of HLTB_METRICS) {
-        if (found.has(metric.displayLabel) || !metric.matches(text)) continue;
-        const hours = parseHours(text) || parseHours(element.nextElementSibling?.textContent || "");
-        if (hours && hours > 0) { found.set(metric.displayLabel, { ...metric, hours }); continue; }
-        const parentText = (element.parentElement?.textContent || "").replace(/\s+/g, " ").trim();
-        const labelsOnParent = HLTB_METRICS.filter(({ appearsIn }) => appearsIn(parentText)).length;
-        const parentHours = labelsOnParent === 1 ? parseHours(parentText) : null;
-        if (parentHours && parentHours > 0) found.set(metric.displayLabel, { ...metric, hours: parentHours });
-      }
-    }
-    return HLTB_METRICS.map((metric) => found.get(metric.displayLabel)).filter(Boolean);
-  }
 
   function formatAmount(amount) {
     return new Intl.NumberFormat(document.documentElement.lang || undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(amount);
   }
 
   function formatPrice({ amount, currency }) { return `${formatAmount(amount)}${currency || ""}`; }
-
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[character]));
-  }
 
   function getAppId() { return location.pathname.match(/\/app\/(\d+)/)?.[1] || null; }
   function getAppTitle() {
@@ -212,7 +121,16 @@
     const signature = `status|${price?.amount || ""}|${message}`;
     if (signature !== lastSignature) {
       widget.setAttribute("aria-label", "Steam Value Per Hour status");
-      widget.innerHTML = `<div class="svph-title">Price per hour</div><p class="svph-status">${escapeHtml(message)}</p>`;
+
+      const title = document.createElement("div");
+      title.className = "svph-title";
+      title.textContent = "Price per hour";
+
+      const statusEl = document.createElement("p");
+      statusEl.className = "svph-status";
+      statusEl.textContent = message;
+
+      widget.replaceChildren(title, statusEl);
       lastSignature = signature;
     }
     attachWidget(price?.anchor, widget);
@@ -223,15 +141,79 @@
     const recordMode = Boolean(recordPrice);
     const signature = [settings.mode, price.amount, price.currency, recordPrice?.amount || "", recordPrice?.currency || "", ...metrics.flatMap(({ displayLabel, hours }) => [displayLabel, hours]), status || ""].join("|");
     if (signature !== lastSignature) {
+      const fragment = document.createDocumentFragment();
+
+      const title = document.createElement("div");
+      title.className = "svph-title";
+      title.textContent = "Price per hour";
+      fragment.appendChild(title);
+
+      if (status) {
+        const statusEl = document.createElement("p");
+        statusEl.className = "svph-status";
+        statusEl.textContent = status;
+        fragment.appendChild(statusEl);
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+
+      const thName = document.createElement("th");
+      thName.scope = "col";
+      thName.textContent = "Name";
+
+      const thHours = document.createElement("th");
+      thHours.scope = "col";
+      thHours.textContent = "Hours";
+
+      const thCurrent = document.createElement("th");
+      thCurrent.scope = "col";
+      thCurrent.textContent = `Current (${formatPrice(price)})`;
+
+      headerRow.append(thName, thHours, thCurrent);
+
+      if (recordMode) {
+        const thRecord = document.createElement("th");
+        thRecord.scope = "col";
+        thRecord.textContent = `Record (${formatPrice(recordPrice)})`;
+        headerRow.appendChild(thRecord);
+      }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
       const currentCurrency = price.currency ? ` ${price.currency}` : "";
-      const rows = metrics.map(({ displayLabel, hours }) => {
-        const currentCost = `${formatAmount(price.amount / hours)}${currentCurrency}/h`;
-        const recordCost = recordPrice ? `${formatAmount(recordPrice.amount / hours)}${recordPrice.currency ? ` ${recordPrice.currency}` : ""}/h` : "";
-        return `<tr><th scope="row">${escapeHtml(displayLabel)}</th><td>${formatAmount(hours)} h</td><td>${currentCost}</td>${recordMode ? `<td>${recordCost}</td>` : ""}</tr>`;
-      }).join("");
-      const recordHeader = recordMode ? `<th scope="col">Record (${escapeHtml(formatPrice(recordPrice))})</th>` : "";
+      const recordCurrency = recordPrice?.currency ? ` ${recordPrice.currency}` : "";
+
+      for (const { displayLabel, hours } of metrics) {
+        const tr = document.createElement("tr");
+
+        const th = document.createElement("th");
+        th.scope = "row";
+        th.textContent = displayLabel;
+
+        const tdHours = document.createElement("td");
+        tdHours.textContent = `${formatAmount(hours)} h`;
+
+        const tdCurrent = document.createElement("td");
+        tdCurrent.textContent = `${formatAmount(price.amount / hours)}${currentCurrency}/h`;
+
+        tr.append(th, tdHours, tdCurrent);
+
+        if (recordMode) {
+          const tdRecord = document.createElement("td");
+          tdRecord.textContent = `${formatAmount(recordPrice.amount / hours)}${recordCurrency}/h`;
+          tr.appendChild(tdRecord);
+        }
+
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      fragment.appendChild(table);
+
       widget.setAttribute("aria-label", recordMode ? "Price per hour with SteamDB two-year low" : "Price per hour based on HowLongToBeat estimates");
-      widget.innerHTML = `<div class="svph-title">Price per hour</div>${status ? `<p class="svph-status">${escapeHtml(status)}</p>` : ""}<table><thead><tr><th scope="col">Name</th><th scope="col">Hours</th><th scope="col">Current (${escapeHtml(formatPrice(price))})</th>${recordHeader}</tr></thead><tbody>${rows}</tbody></table>`;
+      widget.replaceChildren(fragment);
       lastSignature = signature;
     }
     const anchor = recordPrice?.anchor || price.anchor;
@@ -241,25 +223,16 @@
   function render() {
     const price = getPrice();
     if (!price) { document.getElementById(WIDGET_ID)?.remove(); lastSignature = null; return false; }
-    if (settings.mode === "advanced") {
-      const recordPrice = getSteamDbPrice();
-      const metrics = getDomMetrics();
-      if (metrics.length) {
-        renderTable({ price, recordPrice, metrics });
-        return true;
-      }
-      renderStatus(price, "Waiting for HowLongToBeat data from Augmented Steam.");
-      return false;
-    }
-    if (standaloneData?.ok && standaloneData.metrics?.length) {
-      renderTable({ price, metrics: standaloneData.metrics });
+    if (hltbData?.ok && hltbData.metrics?.length) {
+      const recordPrice = settings.mode === "advanced" ? getSteamDbPrice() : null;
+      renderTable({ price, recordPrice, metrics: hltbData.metrics });
       return true;
     }
-    const message = standaloneData?.reason === "no-id-match"
+    const message = hltbData?.reason === "no-id-match"
       ? "No HowLongToBeat result with a confirmed Steam AppID match was found."
-      : standaloneData?.reason === "network"
+      : hltbData?.reason === "network"
         ? "HowLongToBeat could not be reached. Try again later."
-        : "Loading independent HowLongToBeat data…";
+        : "Loading HowLongToBeat data…";
     renderStatus(price, message);
     return false;
   }
@@ -272,16 +245,16 @@
     } catch { settings.mode = DEFAULT_MODE; }
   }
 
-  async function requestStandaloneHltb() {
-    if (settings.mode !== DEFAULT_MODE || !api?.runtime?.sendMessage) return;
+  async function requestHltb() {
+    if (!api?.runtime?.sendMessage) return;
     const appId = getAppId();
     const title = getAppTitle();
     if (!appId || !title) return;
     const key = `${appId}|${title}`;
-    if (standaloneRequestKey === key) return;
-    standaloneRequestKey = key;
-    try { standaloneData = await api.runtime.sendMessage({ type: "get-hltb", appId, title }); }
-    catch { standaloneData = { ok: false, reason: "network" }; }
+    if (hltbRequestKey === key) return;
+    hltbRequestKey = key;
+    try { hltbData = await api.runtime.sendMessage({ type: "get-hltb", appId, title }); }
+    catch { hltbData = { ok: false, reason: "network" }; }
     scheduleRender();
   }
 
@@ -305,7 +278,6 @@
       const widget = document.getElementById(WIDGET_ID);
       if (mutations.some((mutation) => !widget || (mutation.target !== widget && !widget.contains(mutation.target)))) {
         scheduleRender();
-        if (render() && (settings.mode !== "advanced" || Boolean(getSteamDbPrice()))) stopObservingSoon();
       }
     });
     const target = settings.mode === "advanced" ? document.body : (document.querySelector("#game_area_purchase") || document.body);
@@ -318,14 +290,14 @@
     if (api?.storage?.onChanged) api.storage.onChanged.addListener((changes) => {
       if (!changes.mode) return;
       settings.mode = changes.mode.newValue === "advanced" ? "advanced" : DEFAULT_MODE;
-      standaloneData = null; standaloneRequestKey = null; lastSignature = null;
+      lastSignature = null;
       observer?.disconnect();
       startObserver();
-      scheduleRender(); requestStandaloneHltb();
+      scheduleRender();
     });
     render();
     startObserver();
-    await requestStandaloneHltb();
+    await requestHltb();
     scheduleRender();
   }
 

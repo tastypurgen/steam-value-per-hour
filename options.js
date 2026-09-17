@@ -12,6 +12,7 @@
 
   async function load() {
     try {
+      if (!api?.storage?.local) return;
       const stored = await api.storage.local.get({ mode: DEFAULT_MODE });
       const mode = stored.mode === "advanced" ? "advanced" : DEFAULT_MODE;
       const input = form.elements.mode && [...form.elements.mode].find((item) => item.value === mode);
@@ -43,16 +44,17 @@
       const strong = advancedOption.querySelector("strong");
       const small = advancedOption.querySelector("small");
       if (strong) strong.textContent = "Расширенный режим";
-      if (small) small.textContent = "Считывает блоки HLTB и SteamDB, уже добавленные на страницу расширениями ниже. Колонка рекорда использует минимум SteamDB за 2 года.";
+      if (small) small.textContent = "Использует прямой запрос к HowLongToBeat и добавляет колонку рекордной цены по минимуму SteamDB за 2 года.";
     }
 
     const depsTitle = document.getElementById("dependencies-title");
-    if (depsTitle) depsTitle.textContent = "Необходимые расширения для расширенного режима";
+    if (depsTitle) depsTitle.textContent = "Опциональное расширение для расширенного режима";
   }
 
   form.addEventListener("change", async (event) => {
     if (event.target.name !== "mode") return;
     try {
+      if (!api?.storage?.local) throw new Error("Storage API not available");
       await api.storage.local.set({ mode: event.target.value === "advanced" ? "advanced" : DEFAULT_MODE });
       showStatus(isRussian ? "Настройки сохранены." : "Settings saved.");
     } catch {

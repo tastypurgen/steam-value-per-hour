@@ -3,10 +3,11 @@
   const HLTB_INIT_URL = "https://howlongtobeat.com/api/search/site/init";
   const HLTB_SEARCH_URL = "https://howlongtobeat.com/api/search/site";
   const HLTB_GAME_URL = "https://howlongtobeat.com/game/";
-  const CACHE_TTL = 24 * 60 * 60 * 1000;
+  const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const FAILURE_TTL = 15 * 60 * 1000;
   const inFlight = new Map();
   let sessionToken = null;
+  let sessionTokenPromise = null;
 
   function normalize(value) {
     return String(value || "")
@@ -31,6 +32,7 @@
 
   function toMetrics(result) {
     return [
+      ["All PlayStyles", hoursFromSeconds(result?.comp_all)],
       ["Main Story", hoursFromSeconds(result?.comp_main)],
       ["Story and Extras", hoursFromSeconds(result?.comp_plus)],
       ["Completionist", hoursFromSeconds(result?.comp_100)]
@@ -65,18 +67,28 @@
 
   async function getSessionToken(forceRefresh = false) {
     if (!forceRefresh && sessionToken && Date.now() - sessionToken.createdAt < 10 * 60 * 1000) return sessionToken;
-    const response = await fetch(`${HLTB_INIT_URL}?t=${Date.now()}`, {
-      headers: { accept: "application/json" },
-      credentials: "omit",
-      referrer: "https://howlongtobeat.com/",
-      referrerPolicy: "strict-origin-when-cross-origin",
-      signal: AbortSignal.timeout(20000)
-    });
-    if (!response.ok) throw new Error(`HLTB init HTTP ${response.status}`);
-    const token = await response.json();
-    if (!token?.token || !token?.hpKey || !token?.hpVal) throw new Error("HLTB init response is missing session fields");
-    sessionToken = { ...token, createdAt: Date.now() };
-    return sessionToken;
+    if (sessionTokenPromise && !forceRefresh) return sessionTokenPromise;
+
+    sessionTokenPromise = (async () => {
+      try {
+        const response = await fetch(`${HLTB_INIT_URL}?t=${Date.now()}`, {
+          headers: { accept: "application/json" },
+          credentials: "omit",
+          referrer: "https://howlongtobeat.com/",
+          referrerPolicy: "strict-origin-when-cross-origin",
+          signal: AbortSignal.timeout(20000)
+        });
+        if (!response.ok) throw new Error(`HLTB init HTTP ${response.status}`);
+        const token = await response.json();
+        if (!token?.token || !token?.hpKey || !token?.hpVal) throw new Error("HLTB init response is missing session fields");
+        sessionToken = { ...token, createdAt: Date.now() };
+        return sessionToken;
+      } finally {
+        sessionTokenPromise = null;
+      }
+    })();
+
+    return sessionTokenPromise;
   }
 
   function getDetailGame(html) {
@@ -159,9 +171,12 @@
     if (!api?.storage?.local) return null;
     const stored = await api.storage.local.get(key);
     const value = stored?.[key];
-    if (!value || normalize(value.title) !== normalize(title)) return null;
+    if (!value) return null;
     const ttl = value.ok ? CACHE_TTL : (value.reason === "network" ? 30 * 1000 : FAILURE_TTL);
-    if (Date.now() - value.cachedAt > ttl) return null;
+    if (Date.now() - value.cachedAt > ttl || normalize(value.title) !== normalize(title)) {
+      api.storage.local.remove(key).catch(() => {});
+      return null;
+    }
     return { ...value, source: "cache" };
   }
 
@@ -170,18 +185,25 @@
     if (cached) return cached;
     const result = await queryHltb(appId, title).catch((error) => ({ ok: false, reason: "network", detail: String(error?.message || error) }));
     const value = { ...result, appId: String(appId), title, cachedAt: Date.now() };
-    if (api?.storage?.local) await api.storage.local.set({ [key]: value });
+    if (api?.storage?.local) {
+      await api.storage.local.set({ [key]: value });
+      api.storage.local.remove(`hltb:${appId}`).catch(() => {});
+    }
     return value;
   }
 
   async function handleMessage(message) {
-    if (!message || message.type !== "get-hltb" || !/^\d+$/.test(String(message.appId || "")) || !message.title) return undefined;
     const appId = String(message.appId);
     const title = String(message.title).trim().slice(0, 160);
-    const key = `hltb:${appId}`;
+    const key = `hltb:v2:${appId}`;
     if (!inFlight.has(key)) inFlight.set(key, fetchAndCache(key, appId, title).finally(() => inFlight.delete(key)));
     return inFlight.get(key);
   }
 
-  api?.runtime?.onMessage?.addListener(handleMessage);
+  api?.runtime?.onMessage?.addListener((message) => {
+    if (!message || message.type !== "get-hltb" || !/^\d+$/.test(String(message.appId || "")) || !message.title) {
+      return; // Return undefined synchronously so other listeners or internal messaging are not blocked
+    }
+    return handleMessage(message);
+  });
 })();

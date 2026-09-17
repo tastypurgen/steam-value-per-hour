@@ -41,22 +41,18 @@
               <input type="radio" id="mode-advanced" name="mode" value="advanced">
               <div class="mode-title-group">
                 <span class="mode-name" id="mode-advanced-name">Advanced</span>
-                <span class="mode-badge badge-advanced" id="mode-advanced-badge">SteamDB + HLTB</span>
+                <span class="mode-badge badge-advanced" id="mode-advanced-badge">+ SteamDB</span>
               </div>
             </div>
             <p class="mode-desc" id="mode-advanced-desc">
-              Reads HLTB and SteamDB blocks rendered on the store page. Shows SteamDB's 2-year low record price.
+              Direct HowLongToBeat lookup plus SteamDB's 2-year low record price.
             </p>
           </label>
         </div>
 
         <div id="advanced-deps" class="advanced-deps" hidden>
-          <div class="deps-title" id="deps-title">Requires page extensions:</div>
+          <div class="deps-title" id="deps-title">Requires page extension:</div>
           <ul class="deps-list">
-            <li>
-              <a href="https://addons.mozilla.org/firefox/addon/augmented-steam/" target="_blank" rel="noopener noreferrer">Augmented Steam</a>
-              <span class="dep-hint" id="dep-as-hint">(for HLTB block)</span>
-            </li>
             <li>
               <a href="https://addons.mozilla.org/firefox/addon/steam-database/" target="_blank" rel="noopener noreferrer">SteamDB</a>
               <span class="dep-hint" id="dep-sdb-hint">(for 2-year low)</span>
@@ -71,7 +67,7 @@
     </main>
 
     <footer class="popup-footer">
-      <a href="#" id="open-options" class="options-link">⚙ <span id="options-link-text">Full settings</span></a>
+      <a href="options.html" target="_blank" id="open-options" class="options-link">⚙ <span id="options-link-text">Full settings</span></a>
     </footer>
   </div>
 
