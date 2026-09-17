@@ -190,6 +190,52 @@ body {
   font-size: 10px;
 }
 
+.metrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.metric-item:hover {
+  border-color: #4b6a84;
+  background: #212e40;
+}
+
+.metric-item:has(input:checked) {
+  border-color: #3d566e;
+}
+
+.metric-item input[type="checkbox"] {
+  accent-color: var(--accent-cyan);
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c2d4e5;
+  flex: 1;
+}
+
+.metric-item:has(input:checked) .metric-label {
+  color: #ffffff;
+}
+
 .status-bar {
   min-height: 18px;
   margin-top: 6px;

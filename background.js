@@ -39,10 +39,40 @@
     ].filter(([, hours]) => hours).map(([displayLabel, hours]) => ({ displayLabel, hours }));
   }
 
-  function buildPayload(title) {
+  function cleanTitle(value) {
+    return String(value || "")
+      .replace(/[™®©]/g, "")
+      .replace(/[’']/g, "")
+      .replace(/[^a-z0-9а-яіїєґ\s]/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getSearchQueries(title) {
+    const queries = [];
+    const add = (t) => {
+      const cleaned = cleanTitle(t);
+      if (cleaned && !queries.includes(cleaned)) queries.push(cleaned);
+    };
+
+    add(title);
+    const stripped = String(title || "")
+      .replace(/[™®©]/g, "")
+      .replace(/[:\-–—]\s*(?:\d{4}\s+)?(?:edition|deluxe|bundle|remastered|enhanced|definitive|goty|game of the year|complete|director's cut|directors cut|vr|collection).*$/i, "")
+      .replace(/\b(?:\d{4}\s+)?(?:edition|deluxe|bundle|remastered|enhanced|definitive|goty|game of the year|complete|director's cut|directors cut|vr|collection)\b.*$/i, "");
+    add(stripped);
+    if (title.includes(":")) add(title.split(":")[0]);
+    if (title.includes(" - ")) add(title.split(" - ")[0]);
+    if (title.includes(" – ")) add(title.split(" – ")[0]);
+
+    return queries;
+  }
+
+  function buildPayload(queryText) {
+    const searchTerms = String(queryText || "").split(/\s+/).filter(Boolean);
     return {
       searchType: "games",
-      searchTerms: title.split(/\s+/).filter(Boolean),
+      searchTerms,
       searchPage: 1,
       size: 20,
       searchOptions: {
@@ -121,9 +151,8 @@
     return null;
   }
 
-  async function queryHltb(appId, title) {
-    let token = await getSessionToken();
-    let payload = { ...buildPayload(title), useCache: true, [token.hpKey]: token.hpVal };
+  async function searchCandidates(token, queryText) {
+    let payload = { ...buildPayload(queryText), useCache: true, [token.hpKey]: token.hpVal };
     let response = await fetch(HLTB_SEARCH_URL, {
       method: "POST",
       headers: {
@@ -141,7 +170,7 @@
     });
     if (response.status === 403) {
       token = await getSessionToken(true);
-      payload = { ...buildPayload(title), useCache: true, [token.hpKey]: token.hpVal };
+      payload = { ...buildPayload(queryText), useCache: true, [token.hpKey]: token.hpVal };
       response = await fetch(HLTB_SEARCH_URL, {
         method: "POST",
         headers: {
@@ -158,11 +187,38 @@
         signal: AbortSignal.timeout(20000)
       });
     }
-    if (!response.ok) throw new Error(`HLTB search HTTP ${response.status}`);
+    if (!response.ok) return [];
     const body = await response.json();
-    const candidates = Array.isArray(body?.data) ? body.data : [];
-    // Search is discovery only. AppID confirmation comes from profile_steam in detail data.
-    const result = await findConfirmedCandidate(appId, title, candidates, token);
+    return Array.isArray(body?.data) ? body.data : [];
+  }
+
+  async function queryHltb(appId, title) {
+    const token = await getSessionToken();
+    const queries = getSearchQueries(title);
+    const seenCandidateIds = new Set();
+    const allCandidates = [];
+
+    for (const query of queries) {
+      const candidates = await searchCandidates(token, query);
+      for (const candidate of candidates) {
+        if (candidate?.game_id && !seenCandidateIds.has(candidate.game_id)) {
+          seenCandidateIds.add(candidate.game_id);
+          allCandidates.push(candidate);
+        }
+      }
+      const direct = allCandidates.find((c) => steamIdsFromResult(c).includes(String(appId)) && toMetrics(c).length > 0);
+      if (direct) {
+        return { ok: true, metrics: toMetrics(direct), hltbId: String(direct.game_id), matchedTitle: direct.game_name };
+      }
+      if (candidates.length > 0) {
+        const confirmed = await findConfirmedCandidate(appId, title, allCandidates, token);
+        if (confirmed && toMetrics(confirmed).length > 0) {
+          return { ok: true, metrics: toMetrics(confirmed), hltbId: String(confirmed.game_id), matchedTitle: confirmed.game_name };
+        }
+      }
+    }
+
+    const result = await findConfirmedCandidate(appId, title, allCandidates, token);
     if (!result || !toMetrics(result).length) return { ok: false, reason: "no-id-match" };
     return { ok: true, metrics: toMetrics(result), hltbId: String(result.game_id), matchedTitle: result.game_name };
   }
@@ -187,7 +243,7 @@
     const value = { ...result, appId: String(appId), title, cachedAt: Date.now() };
     if (api?.storage?.local) {
       await api.storage.local.set({ [key]: value });
-      api.storage.local.remove(`hltb:${appId}`).catch(() => {});
+      api.storage.local.remove([`hltb:${appId}`, `hltb:v2:${appId}`]).catch(() => {});
     }
     return value;
   }
@@ -195,7 +251,7 @@
   async function handleMessage(message) {
     const appId = String(message.appId);
     const title = String(message.title).trim().slice(0, 160);
-    const key = `hltb:v2:${appId}`;
+    const key = `hltb:v3:${appId}`;
     if (!inFlight.has(key)) inFlight.set(key, fetchAndCache(key, appId, title).finally(() => inFlight.delete(key)));
     return inFlight.get(key);
   }

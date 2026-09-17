@@ -1,6 +1,12 @@
 (() => {
   const WIDGET_ID = "svph-widget";
   const DEFAULT_MODE = "standalone";
+  const DEFAULT_VISIBLE_METRICS = {
+    "All PlayStyles": true,
+    "Main Story": true,
+    "Story and Extras": true,
+    "Completionist": true
+  };
   const PRICE_SELECTORS = [
     "#game_area_purchase .game_purchase_action .discount_final_price",
     "#game_area_purchase .game_purchase_action .game_purchase_price",
@@ -8,7 +14,7 @@
     ".game_area_purchase_game_wrapper .game_purchase_price"
   ];
   const api = globalThis.browser || globalThis.chrome || null;
-  let settings = { mode: DEFAULT_MODE };
+  let settings = { mode: DEFAULT_MODE, visibleMetrics: { ...DEFAULT_VISIBLE_METRICS } };
   let hltbData = null;
   let hltbRequestKey = null;
   let lastSignature = null;
@@ -35,12 +41,43 @@
       || element;
   }
 
+  function normalizeTitle(value) {
+    return String(value || "")
+      .replace(/[™®©]/g, "")
+      .replace(/[’']/g, "")
+      .replace(/[^a-z0-9а-яіїєґ\s]/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function stripEdition(value) {
+    return String(value || "")
+      .replace(/[:\-–—]\s*(?:\d{4}\s+)?(?:edition|deluxe|bundle|remastered|enhanced|definitive|goty|game of the year|complete|director's cut|directors cut|vr|collection).*$/i, "")
+      .replace(/\b(?:\d{4}\s+)?(?:edition|deluxe|bundle|remastered|enhanced|definitive|goty|game of the year|complete|director's cut|directors cut|vr|collection)\b.*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function getPrice() {
-    const appName = (document.querySelector(".apphub_AppName")?.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-    const baseGameSection = [...document.querySelectorAll("#game_area_purchase .game_area_purchase_game")].find((section) => {
-      const heading = (section.querySelector("h2.title, h1, h2")?.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-      return appName && (heading.endsWith(appName) || heading.includes(appName));
+    const rawAppName = document.querySelector(".apphub_AppName")?.textContent || "";
+    const appName = normalizeTitle(rawAppName);
+    const baseAppName = stripEdition(appName);
+    const purchaseSections = [...document.querySelectorAll("#game_area_purchase .game_area_purchase_game")];
+
+    let baseGameSection = purchaseSections.find((section) => {
+      const heading = normalizeTitle(section.querySelector("h2.title, h1, h2")?.textContent || "");
+      return appName && heading.includes(appName);
     });
+
+    if (!baseGameSection && baseAppName && baseAppName.length >= 3) {
+      baseGameSection = purchaseSections.find((section) => {
+        const heading = normalizeTitle(section.querySelector("h2.title, h1, h2")?.textContent || "");
+        const isAddon = /\b(soundtrack|ost|dlc|artbook|season pass|upgrade|expansion)\b/i.test(heading);
+        return !isAddon && heading.includes(baseAppName);
+      });
+    }
+
     if (baseGameSection) {
       const priceElement = [...baseGameSection.querySelectorAll(".discount_final_price, .game_purchase_price")].find(isVisible);
       const label = priceElement?.textContent?.trim();
@@ -216,16 +253,22 @@
       widget.replaceChildren(fragment);
       lastSignature = signature;
     }
-    const anchor = recordPrice?.anchor || price.anchor;
-    attachWidget(anchor, widget);
+    attachWidget(price.anchor, widget);
   }
 
   function render() {
     const price = getPrice();
     if (!price) { document.getElementById(WIDGET_ID)?.remove(); lastSignature = null; return false; }
     if (hltbData?.ok && hltbData.metrics?.length) {
+      const activeMetrics = hltbData.metrics.filter(
+        ({ displayLabel }) => settings.visibleMetrics?.[displayLabel] !== false
+      );
+      if (!activeMetrics.length) {
+        renderStatus(price, "All metrics are hidden in extension settings.");
+        return true;
+      }
       const recordPrice = settings.mode === "advanced" ? getSteamDbPrice() : null;
-      renderTable({ price, recordPrice, metrics: hltbData.metrics });
+      renderTable({ price, recordPrice, metrics: activeMetrics });
       return true;
     }
     const message = hltbData?.reason === "no-id-match"
@@ -240,9 +283,13 @@
   async function loadSettings() {
     if (!api?.storage?.local) return;
     try {
-      const stored = await api.storage.local.get({ mode: DEFAULT_MODE });
+      const stored = await api.storage.local.get({ mode: DEFAULT_MODE, visibleMetrics: DEFAULT_VISIBLE_METRICS });
       settings.mode = stored.mode === "advanced" ? "advanced" : DEFAULT_MODE;
-    } catch { settings.mode = DEFAULT_MODE; }
+      settings.visibleMetrics = stored.visibleMetrics || DEFAULT_VISIBLE_METRICS;
+    } catch {
+      settings.mode = DEFAULT_MODE;
+      settings.visibleMetrics = DEFAULT_VISIBLE_METRICS;
+    }
   }
 
   async function requestHltb() {
@@ -288,12 +335,21 @@
   async function initialize() {
     await loadSettings();
     if (api?.storage?.onChanged) api.storage.onChanged.addListener((changes) => {
-      if (!changes.mode) return;
-      settings.mode = changes.mode.newValue === "advanced" ? "advanced" : DEFAULT_MODE;
-      lastSignature = null;
-      observer?.disconnect();
-      startObserver();
-      scheduleRender();
+      let shouldRerender = false;
+      if (changes.mode) {
+        settings.mode = changes.mode.newValue === "advanced" ? "advanced" : DEFAULT_MODE;
+        observer?.disconnect();
+        startObserver();
+        shouldRerender = true;
+      }
+      if (changes.visibleMetrics) {
+        settings.visibleMetrics = changes.visibleMetrics.newValue || DEFAULT_VISIBLE_METRICS;
+        shouldRerender = true;
+      }
+      if (shouldRerender) {
+        lastSignature = null;
+        scheduleRender();
+      }
     });
     render();
     startObserver();

@@ -55,6 +55,12 @@ legend {
   box-shadow: 0 0 0 1px #67c1f5;
 }
 
+.mode-option input {
+  accent-color: #67c1f5;
+  cursor: pointer;
+  margin-block-start: .2rem;
+}
+
 .mode-option strong, .mode-option small { display: block; }
 .mode-option small { line-height: 1.45; margin-block-start: .35rem; }
 .save-status { color: #a4e67b; min-block-size: 1.3rem; }

@@ -29,7 +29,7 @@ Official Firefox Add-ons page for optional Advanced mode:
 2. Click **Load Temporary Add-on…**.
 3. Select `manifest.json` from this directory.
 4. Open or reload any Steam game page (e.g., `https://store.steampowered.com/app/1091500/Cyberpunk_2077/`).
-5. To switch between **Default** and **Advanced** modes, click the extension icon in the browser toolbar to open the extension UI popup.
+5. To switch between **Default** and **Advanced** modes or choose which metrics to show (`All PlayStyles`, `Main Story`, `Story and Extras`, `Completionist`), click the extension icon in the browser toolbar or open the options page.
 
 ## Packaging for Firefox Add-ons (AMO)
 

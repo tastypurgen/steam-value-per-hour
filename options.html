@@ -29,6 +29,38 @@
           </span>
         </label>
       </fieldset>
+
+      <fieldset>
+        <legend id="metrics-legend">Displayed metrics</legend>
+        <label class="mode-option">
+          <input type="checkbox" name="metric" value="All PlayStyles" checked>
+          <span>
+            <strong id="opt-all-title">All PlayStyles</strong>
+            <small id="opt-all-desc">Overall average completion time combining all playstyles.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="checkbox" name="metric" value="Main Story" checked>
+          <span>
+            <strong id="opt-main-title">Main Story</strong>
+            <small id="opt-main-desc">Time required to complete the main story campaign.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="checkbox" name="metric" value="Story and Extras" checked>
+          <span>
+            <strong id="opt-plus-title">Story and Extras</strong>
+            <small id="opt-plus-desc">Time for main story plus side quests and extra content.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="checkbox" name="metric" value="Completionist" checked>
+          <span>
+            <strong id="opt-100-title">Completionist</strong>
+            <small id="opt-100-desc">Time to achieve 100% completion, all achievements, and collectibles.</small>
+          </span>
+        </label>
+      </fieldset>
       <p id="save-status" class="save-status" role="status" aria-live="polite"></p>
     </form>
 
