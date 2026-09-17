@@ -7,12 +7,6 @@
     "Story and Extras": true,
     "Completionist": true
   };
-  const PRICE_SELECTORS = [
-    "#game_area_purchase .game_purchase_action .discount_final_price",
-    "#game_area_purchase .game_purchase_action .game_purchase_price",
-    ".game_area_purchase_game_wrapper .discount_final_price",
-    ".game_area_purchase_game_wrapper .game_purchase_price"
-  ];
   const api = globalThis.browser || globalThis.chrome || null;
   let settings = { mode: DEFAULT_MODE, visibleMetrics: { ...DEFAULT_VISIBLE_METRICS } };
   let hltbData = null;
@@ -26,12 +20,18 @@
   const isVisible = (element) => element instanceof HTMLElement && element.getClientRects().length > 0;
 
   function parseNumber(value) {
-    const compact = value.replace(/[\s\u00a0]/g, "");
-    const decimalIndex = Math.max(compact.lastIndexOf(","), compact.lastIndexOf("."));
-    const normalized = decimalIndex === -1
-      ? compact.replace(/[^\d]/g, "")
-      : `${compact.slice(0, decimalIndex).replace(/[^\d]/g, "")}.${compact.slice(decimalIndex + 1).replace(/[^\d]/g, "")}`;
-    return Number(normalized);
+    const compact = String(value || "").replace(/[\s\u00a0]/g, "");
+    const separators = [...compact.matchAll(/[.,]/g)].map((match) => match.index);
+    if (!separators.length) return Number(compact.replace(/[^\d]/g, ""));
+
+    const lastSeparator = separators[separators.length - 1];
+    const fractionalDigits = compact.slice(lastSeparator + 1).replace(/[^\d]/g, "");
+    const hasBothSeparators = compact.includes(",") && compact.includes(".");
+    const isThousandsSeparated = !hasBothSeparators && fractionalDigits.length === 3;
+    if (isThousandsSeparated) return Number(compact.replace(/[.,]/g, "").replace(/[^\d]/g, ""));
+
+    const integerPart = compact.slice(0, lastSeparator).replace(/[.,]/g, "").replace(/[^\d]/g, "");
+    return Number(`${integerPart || "0"}.${fractionalDigits}`);
   }
 
   function getPurchaseBlock(element) {
@@ -59,53 +59,90 @@
       .trim();
   }
 
+  function isBaseGameHeading(heading, appName, baseAppName) {
+    let normalizedHeading = normalizeTitle(heading)
+      .replace(/^(?:buy|purchase|add to cart)\s+/i, "")
+      .trim();
+    for (const name of [appName, baseAppName]) {
+      if (name && normalizedHeading.endsWith(` ${name}`)) { normalizedHeading = name; break; }
+    }
+    const addonPattern = /\b(?:soundtrack|ost|dlc|artbook|season pass|upgrade|expansion|soundtrack bundle)\b/i;
+    if (!normalizedHeading || addonPattern.test(normalizedHeading)) return false;
+
+    return [appName, baseAppName]
+      .filter((name) => name && name.length >= 3)
+      .some((name) => {
+        if (normalizedHeading === name) return true;
+        if (!normalizedHeading.startsWith(`${name} `)) return false;
+        const suffix = normalizedHeading.slice(name.length).trim();
+        return /^(?:edition|deluxe|remastered|enhanced|definitive|goty|game of the year|complete|director s cut|vr)$/i.test(suffix);
+      });
+  }
+
+  function machinePriceFrom(element, section) {
+    const nodes = [];
+    let current = element;
+    while (current && nodes.length < 5) {
+      nodes.push(current);
+      if (current === section) break;
+      current = current.parentElement;
+    }
+    const machineNode = nodes.find((node) => node.hasAttribute?.("data-price-final") || node.hasAttribute?.("data-price"));
+    if (!machineNode) return null;
+    const raw = machineNode.getAttribute("data-price-final") || machineNode.getAttribute("data-price");
+    const minorUnits = Number(raw);
+    if (!Number.isFinite(minorUnits) || minorUnits <= 0) return null;
+    return {
+      amount: minorUnits / 100,
+      currency: machineNode.getAttribute("data-currency") || machineNode.getAttribute("data-currency-code") || ""
+    };
+  }
+
+  function priceFromElement(element, section) {
+    const label = element?.textContent?.trim() || "";
+    if (!label || /free to play|бесплатно/i.test(label)) return null;
+    const machinePrice = machinePriceFrom(element, section);
+    if (machinePrice) {
+      const numericLabel = label.match(/[\d\s\u00a0.,]+/)?.[0];
+      return { ...machinePrice, currency: numericLabel ? label.replace(numericLabel, "").trim() : machinePrice.currency };
+    }
+    const numericPart = label.match(/[\d\s\u00a0.,]+/)?.[0];
+    if (!numericPart) return null;
+    const amount = parseNumber(numericPart);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return { amount, currency: label.replace(numericPart, "").trim() };
+  }
+
   function getPrice() {
     const rawAppName = document.querySelector(".apphub_AppName")?.textContent || "";
     const appName = normalizeTitle(rawAppName);
     const baseAppName = stripEdition(appName);
     const purchaseSections = [...document.querySelectorAll("#game_area_purchase .game_area_purchase_game")];
 
-    let baseGameSection = purchaseSections.find((section) => {
-      const heading = normalizeTitle(section.querySelector("h2.title, h1, h2")?.textContent || "");
-      return appName && heading.includes(appName);
+    const baseGameSection = purchaseSections.find((section) => {
+      const heading = section.querySelector("h2.title, h1, h2")?.textContent || "";
+      return isBaseGameHeading(heading, appName, baseAppName);
     });
-
-    if (!baseGameSection && baseAppName && baseAppName.length >= 3) {
-      baseGameSection = purchaseSections.find((section) => {
-        const heading = normalizeTitle(section.querySelector("h2.title, h1, h2")?.textContent || "");
-        const isAddon = /\b(soundtrack|ost|dlc|artbook|season pass|upgrade|expansion)\b/i.test(heading);
-        return !isAddon && heading.includes(baseAppName);
-      });
-    }
 
     if (baseGameSection) {
       const priceElement = [...baseGameSection.querySelectorAll(".discount_final_price, .game_purchase_price")].find(isVisible);
-      const label = priceElement?.textContent?.trim();
-      const numericPart = label?.match(/[\d\s\u00a0.,]+/)?.[0];
-      const amount = numericPart ? parseNumber(numericPart) : NaN;
-      if (Number.isFinite(amount) && amount > 0) return { amount, currency: label.replace(numericPart, "").trim(), anchor: getPurchaseBlock(baseGameSection) };
-    }
-    for (const selector of PRICE_SELECTORS) {
-      const element = [...document.querySelectorAll(selector)].find(isVisible);
-      if (!element) continue;
-      const label = element.textContent.trim();
-      if (!label || /free to play|бесплатно/i.test(label)) continue;
-      const numericPart = label.match(/[\d\s\u00a0.,]+/)?.[0];
-      if (!numericPart) continue;
-      const amount = parseNumber(numericPart);
-      if (Number.isFinite(amount) && amount > 0) return { amount, currency: label.replace(numericPart, "").trim(), anchor: getPurchaseBlock(element) };
+      const price = priceElement && priceFromElement(priceElement, baseGameSection);
+      if (price) return { ...price, anchor: getPurchaseBlock(baseGameSection) };
     }
     return null;
   }
 
   function getSteamDbPrice(basePrice = null) {
-    const candidates = [
-      ...document.querySelectorAll(".steamdb_prices, .steamdb_prices_top"),
-      ...[...document.querySelectorAll("*")].filter((el) => {
+    let candidates = [...document.querySelectorAll(".steamdb_prices, .steamdb_prices_top")];
+    if (!candidates.length) {
+      const scope = document.getElementById("game_area_purchase")
+        || document.querySelector(".game_area_purchase_game_wrapper")
+        || document.body;
+      candidates = [...scope.querySelectorAll("div, p, span, td")].filter((el) => {
         const text = (el.textContent || "").replace(/\s+/g, " ").trim();
         return /SteamDB lowest recorded price is/i.test(text) && ![...el.children].some((c) => /SteamDB lowest recorded price is/i.test(c.textContent || ""));
-      })
-    ];
+      });
+    }
 
     for (const anchor of candidates.filter(isVisible)) {
       const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
@@ -168,7 +205,22 @@
       statusEl.className = "svph-status";
       statusEl.textContent = message;
 
-      widget.replaceChildren(title, statusEl);
+      const children = [title, statusEl];
+      if (hltbData?.reason === "service-error") {
+        const retryButton = document.createElement("button");
+        retryButton.type = "button";
+        retryButton.className = "svph-retry";
+        retryButton.textContent = "Retry";
+        retryButton.addEventListener("click", () => {
+          hltbRequestKey = null;
+          hltbData = null;
+          lastSignature = null;
+          scheduleRender();
+          requestHltb();
+        }, { once: true });
+        children.push(retryButton);
+      }
+      widget.replaceChildren(...children);
       lastSignature = signature;
     }
     attachWidget(price?.anchor, widget);
@@ -273,8 +325,8 @@
     }
     const message = hltbData?.reason === "no-id-match"
       ? "No HowLongToBeat result with a confirmed Steam AppID match was found."
-      : hltbData?.reason === "network"
-        ? "HowLongToBeat could not be reached. Try again later."
+      : hltbData?.reason === "service-error"
+        ? "HowLongToBeat is temporarily unavailable."
         : "Loading HowLongToBeat data…";
     renderStatus(price, message);
     return false;
@@ -301,7 +353,7 @@
     if (hltbRequestKey === key) return;
     hltbRequestKey = key;
     try { hltbData = await api.runtime.sendMessage({ type: "get-hltb", appId, title }); }
-    catch { hltbData = { ok: false, reason: "network" }; }
+    catch { hltbData = { ok: false, reason: "service-error" }; }
     scheduleRender();
   }
 
@@ -357,5 +409,7 @@
     scheduleRender();
   }
 
-  initialize();
+  const testExports = { parseNumber, isBaseGameHeading, machinePriceFrom, priceFromElement };
+  if (typeof module !== "undefined" && module.exports) module.exports = testExports;
+  if (typeof document !== "undefined") initialize();
 })();

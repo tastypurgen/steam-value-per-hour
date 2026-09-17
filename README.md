@@ -36,16 +36,25 @@ Official Firefox Add-ons page for optional Advanced mode:
 To build a valid `.zip` distribution file preserving forward-slash path separators and directory hierarchy:
 
 ```powershell
-tar -a -cf steam-value-per-hour-firefox-0.2.0.zip manifest.json background.js content.js options.html options.js options.css popup.html popup.js popup.css styles.css icons
+tar -a -cf steam-value-per-hour-firefox-0.2.0.zip manifest.json background.js content.js options.html options.js options.css popup.html popup.js popup.css styles.css icons LICENSE PRIVACY.md
 ```
 
 To validate the package using Mozilla's official tools:
 
 ```bash
-npx web-ext lint --source-dir .
+npx web-ext lint --source-dir . --ignore-files "tests/**"
 ```
 
 ## Disclaimer
 
 Steam is a registered trademark of Valve Corporation. HowLongToBeat is a service of Ziff Davis. This add-on is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Valve Corporation, Steam, or HowLongToBeat.
+
+
+## Privacy and release checks
+
+See [PRIVACY.md](PRIVACY.md) for transmitted data and local retention. Copy this policy into the AMO listing privacy-policy field before submission. The manifest declares website content and browsing activity for automatic HowLongToBeat lookups.
+
+Run regression checks with: node --test tests/regression.cjs
+
+Private lookups bypass persistent caching. Service failures are not cached and expose a Retry button. Live Firefox and SteamDB integration still require a manual smoke test before publication.
 
