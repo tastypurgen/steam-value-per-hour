@@ -252,7 +252,7 @@
       return false;
     }
     if (standaloneData?.ok && standaloneData.metrics?.length) {
-      renderTable({ price, metrics: standaloneData.metrics, status: standaloneData.source === "cache" ? "" : "Independent HowLongToBeat data" });
+      renderTable({ price, metrics: standaloneData.metrics });
       return true;
     }
     const message = standaloneData?.reason === "no-id-match"

@@ -34,7 +34,7 @@ Official Firefox Add-ons pages:
 ## Limitations
 
 - HowLongToBeat has no official public API. The standalone mode uses the
-  token-gated `/api/find` flow used by recent open-source clients, then checks
+  token-gated `/api/search/site` flow used by recent open-source clients, then checks
   `profile_steam` in the game's detail data. HLTB may change or block this
   endpoint; failures are shown as a status message and are not replaced with
   invented values.

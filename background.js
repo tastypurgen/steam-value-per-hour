@@ -1,7 +1,7 @@
 (() => {
   const api = globalThis.browser || globalThis.chrome;
-  const HLTB_INIT_URL = "https://howlongtobeat.com/api/find/init";
-  const HLTB_SEARCH_URL = "https://howlongtobeat.com/api/find";
+  const HLTB_INIT_URL = "https://howlongtobeat.com/api/search/site/init";
+  const HLTB_SEARCH_URL = "https://howlongtobeat.com/api/search/site";
   const HLTB_GAME_URL = "https://howlongtobeat.com/game/";
   const CACHE_TTL = 24 * 60 * 60 * 1000;
   const FAILURE_TTL = 15 * 60 * 1000;
@@ -63,8 +63,8 @@
     };
   }
 
-  async function getSessionToken() {
-    if (sessionToken && Date.now() - sessionToken.createdAt < 10 * 60 * 1000) return sessionToken;
+  async function getSessionToken(forceRefresh = false) {
+    if (!forceRefresh && sessionToken && Date.now() - sessionToken.createdAt < 10 * 60 * 1000) return sessionToken;
     const response = await fetch(`${HLTB_INIT_URL}?t=${Date.now()}`, {
       headers: { accept: "application/json" },
       credentials: "omit",
@@ -110,9 +110,9 @@
   }
 
   async function queryHltb(appId, title) {
-    const token = await getSessionToken();
-    const payload = { ...buildPayload(title), useCache: true, [token.hpKey]: token.hpVal };
-    const response = await fetch(HLTB_SEARCH_URL, {
+    let token = await getSessionToken();
+    let payload = { ...buildPayload(title), useCache: true, [token.hpKey]: token.hpVal };
+    let response = await fetch(HLTB_SEARCH_URL, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -127,6 +127,25 @@
       referrerPolicy: "strict-origin-when-cross-origin",
       signal: AbortSignal.timeout(20000)
     });
+    if (response.status === 403) {
+      token = await getSessionToken(true);
+      payload = { ...buildPayload(title), useCache: true, [token.hpKey]: token.hpVal };
+      response = await fetch(HLTB_SEARCH_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json",
+          "x-auth-token": token.token,
+          "x-hp-key": token.hpKey,
+          "x-hp-val": token.hpVal
+        },
+        body: JSON.stringify(payload),
+        credentials: "omit",
+        referrer: "https://howlongtobeat.com/",
+        referrerPolicy: "strict-origin-when-cross-origin",
+        signal: AbortSignal.timeout(20000)
+      });
+    }
     if (!response.ok) throw new Error(`HLTB search HTTP ${response.status}`);
     const body = await response.json();
     const candidates = Array.isArray(body?.data) ? body.data : [];
@@ -140,7 +159,9 @@
     if (!api?.storage?.local) return null;
     const stored = await api.storage.local.get(key);
     const value = stored?.[key];
-    if (!value || normalize(value.title) !== normalize(title) || Date.now() - value.cachedAt > (value.ok ? CACHE_TTL : FAILURE_TTL)) return null;
+    if (!value || normalize(value.title) !== normalize(title)) return null;
+    const ttl = value.ok ? CACHE_TTL : (value.reason === "network" ? 30 * 1000 : FAILURE_TTL);
+    if (Date.now() - value.cachedAt > ttl) return null;
     return { ...value, source: "cache" };
   }
 
