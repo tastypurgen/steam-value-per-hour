@@ -6,7 +6,44 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const content=require('../content.js');
 for(const [input,expected] of [['1,299',1299],['1.299',1299],['12,000',12000],['59,99',59.99],['1,299.99',1299.99],['1.299,99',1299.99],['1 299,99',1299.99]]) test(`regional price ${input}`,()=>assert.equal(content.parseNumber(input),expected));
-for(const [heading,expected] of [['Buy Example',true],['Купить Example',true],['Buy Example Soundtrack',false],['Buy Example DLC',false],['Buy Example Bundle',false],['Buy Other Game',false]]) test(`product ${heading}`,()=>assert.equal(content.isBaseGameHeading(heading,'example','example'),expected));
+for(const [heading,expected] of [
+  ['Buy Example',true],
+  ['Купить Example',true],
+  ['Придбати Example',true],
+  ['Kaufe Example',true],
+  ['Example kaufen',true],
+  ['Buy Example Standard Edition',true],
+  ['Купить Example Standard Edition',true],
+  ['Придбати Example Standard Edition',true],
+  ['Buy Example Complete Edition',true],
+  ['Buy Example Deluxe Edition',true],
+  ['Buy Example Soundtrack',false],
+  ['Buy Example DLC',false],
+  ['Buy Example Bundle',false],
+  ['Buy Example Season Pass',false],
+  ['Buy Other Game',false]
+]) test(`product ${heading}`,()=>assert.equal(content.isBaseGameHeading(heading,'example','example'),expected));
+test('Prince of Persia Standard Edition heading',()=>assert.equal(content.isBaseGameHeading('Buy Prince of Persia The Lost Crown Standard Edition','prince of persia the lost crown','prince of persia the lost crown'),true));
+test('Prince of Persia franchise bundle heading',()=>assert.equal(content.isBaseGameHeading('Buy Prince Of Persia Franchise','prince of persia the lost crown','prince of persia the lost crown'),false));
+test('Standard Edition scores higher than Complete Edition',()=>{
+  const std = content.scorePurchaseBlock('Buy Prince of Persia The Lost Crown Standard Edition','prince of persia the lost crown','prince of persia the lost crown',0);
+  const comp = content.scorePurchaseBlock('Buy Prince of Persia The Lost Crown Complete Edition','prince of persia the lost crown','prince of persia the lost crown',1);
+  assert.ok(std > comp, `Expected Standard Edition (${std}) > Complete Edition (${comp})`);
+});
+test('bundle block detection recognizes bundleid and bundle label',()=>{
+  const elWithBundleId = { matches: sel => sel.includes('data-ds-bundleid'), querySelector: () => null };
+  const elWithForm = { matches: () => false, querySelector: sel => sel.includes('bundleid') ? {} : null };
+  const elStandard = { matches: () => false, querySelector: () => null };
+  assert.equal(content.isBundleBlock(elWithBundleId), true);
+  assert.equal(content.isBundleBlock(elWithForm), true);
+  assert.equal(content.isBundleBlock(elStandard), false);
+});
+test('subscription block detection recognizes ea play or subscription dropdown',()=>{
+  const elSub = { matches: sel => sel.includes('subscription'), querySelector: () => null };
+  const elStandard = { matches: () => false, querySelector: () => null };
+  assert.equal(content.isSubscriptionBlock(elSub), true);
+  assert.equal(content.isSubscriptionBlock(elStandard), false);
+});
 test('machine price retains displayed currency',()=>{const el={textContent:'59,99 zł',hasAttribute:k=>k==='data-price-final',getAttribute:k=>k==='data-price-final'?'5999':null};assert.deepEqual(content.priceFromElement(el,el),{amount:59.99,currency:'zł'});});
 function background(searchResponse,initial={}){
  const stored={...initial},calls=[],timers=[];let handler;let writes=0;

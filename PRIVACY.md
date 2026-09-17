@@ -10,4 +10,4 @@ The add-on reads the optional SteamDB price-history block already rendered on th
 
 Users can remove the local cache by removing the add-on or clearing its extension storage in Firefox. The add-on developer does not receive or retain the cached data.
 
-This policy describes version 0.2.0. Changes to the data practices will be reflected here and in the Firefox Add-ons listing.
+This policy describes version 0.2.1. Changes to the data practices will be reflected here and in the Firefox Add-ons listing.

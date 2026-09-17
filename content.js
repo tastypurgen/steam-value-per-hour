@@ -59,24 +59,73 @@
       .trim();
   }
 
-  function isBaseGameHeading(heading, appName, baseAppName) {
-    let normalizedHeading = normalizeTitle(heading)
-      .replace(/^(?:buy|purchase|add to cart)\s+/i, "")
-      .trim();
-    for (const name of [appName, baseAppName]) {
-      if (name && normalizedHeading.endsWith(` ${name}`)) { normalizedHeading = name; break; }
-    }
-    const addonPattern = /\b(?:soundtrack|ost|dlc|artbook|season pass|upgrade|expansion|soundtrack bundle)\b/i;
-    if (!normalizedHeading || addonPattern.test(normalizedHeading)) return false;
+  function isBundleBlock(element) {
+    if (!element) return false;
+    return Boolean(
+      element.matches?.("[data-ds-bundleid], .dynamic_bundle_description") ||
+      element.closest?.("[data-ds-bundleid], .dynamic_bundle_description") ||
+      element.querySelector?.("input[name='bundleid'], form[name^='add_bundle_to_cart'], .bundle_label, .btn_packageinfo") ||
+      /\bbundle\b/i.test(element.querySelector?.("h2.title, h1, h2")?.textContent || "")
+    );
+  }
 
-    return [appName, baseAppName]
-      .filter((name) => name && name.length >= 3)
-      .some((name) => {
-        if (normalizedHeading === name) return true;
-        if (!normalizedHeading.startsWith(`${name} `)) return false;
-        const suffix = normalizedHeading.slice(name.length).trim();
-        return /^(?:edition|deluxe|remastered|enhanced|definitive|goty|game of the year|complete|director s cut|vr)$/i.test(suffix);
-      });
+  function isSubscriptionBlock(element) {
+    if (!element) return false;
+    return Boolean(
+      element.matches?.(".game_area_purchase_game_dropdown_subscription") ||
+      element.closest?.(".game_area_purchase_game_dropdown_subscription") ||
+      element.querySelector?.(".game_area_purchase_game_dropdown_selection") ||
+      /join\s+(?:ea\s+play|ubisoft\+|gta\+)|подписк|abonnement/i.test(element.textContent || "")
+    );
+  }
+
+  function isAddonText(text) {
+    return /\b(?:soundtrack|ost|dlc|artbook|season\s+pass|expansion(?:\s+pass)?|upgrade(?:\s+pack)?|content\s+pack|bundle|саундтрек|дополнение|сезонный\s+пропуск|сезонний\s+пропуск)\b/i.test(text);
+  }
+
+  function scorePurchaseBlock(heading, appName, baseAppName, index = 0) {
+    const normHeading = normalizeTitle(heading);
+    if (!normHeading) return -100;
+    if (isAddonText(normHeading)) return -100;
+
+    const names = [appName, baseAppName].filter((n) => n && n.length >= 3);
+    let titleScore = 0;
+    for (const name of names) {
+      if (normHeading.includes(name)) {
+        titleScore = Math.max(titleScore, 60);
+      }
+    }
+
+    if (!titleScore && names.length) {
+      const titleTokens = names[0].split(/\s+/).filter((w) => w.length > 2);
+      if (titleTokens.length) {
+        const matchCount = titleTokens.filter((t) => normHeading.includes(t)).length;
+        if (matchCount === titleTokens.length) titleScore = 50;
+        else if (matchCount / titleTokens.length >= 0.6) titleScore = 30;
+      }
+    }
+
+    if (!titleScore) return -100;
+
+    let editionScore = 0;
+    const hasEditionWord = /\b(?:edition|deluxe|complete|gold|ultimate|premium|enhanced|definitive|remastered|goty|game of the year|director s cut|vr|издание)\b/i.test(normHeading);
+    const isStandard = /\b(?:standard|базовое)\b/i.test(normHeading);
+
+    if (!hasEditionWord) {
+      editionScore = 40;
+    } else if (isStandard) {
+      editionScore = 35;
+    } else {
+      editionScore = 15;
+    }
+
+    const positionScore = Math.max(0, 10 - index * 3);
+
+    return titleScore + editionScore + positionScore;
+  }
+
+  function isBaseGameHeading(heading, appName, baseAppName) {
+    return scorePurchaseBlock(heading, appName, baseAppName, 0) >= 60;
   }
 
   function machinePriceFrom(element, section) {
@@ -114,21 +163,44 @@
   }
 
   function getPrice() {
-    const rawAppName = document.querySelector(".apphub_AppName")?.textContent || "";
+    const rawAppName = document.querySelector(".apphub_AppName")?.textContent || getAppTitle();
     const appName = normalizeTitle(rawAppName);
     const baseAppName = stripEdition(appName);
-    const purchaseSections = [...document.querySelectorAll("#game_area_purchase .game_area_purchase_game")];
+    const scope = document.getElementById("game_area_purchase") || document.body;
+    const purchaseSections = [...scope.querySelectorAll(".game_area_purchase_game")];
 
-    const baseGameSection = purchaseSections.find((section) => {
+    // Filter out bundles and subscriptions
+    const nonBundleSections = purchaseSections.filter((section) => !isBundleBlock(section) && !isSubscriptionBlock(section));
+    const candidateSections = nonBundleSections.length ? nonBundleSections : purchaseSections;
+
+    // Score candidates that have a visible price
+    const scoredCandidates = candidateSections.map((section, index) => {
       const heading = section.querySelector("h2.title, h1, h2")?.textContent || "";
-      return isBaseGameHeading(heading, appName, baseAppName);
-    });
+      const priceElement = [...section.querySelectorAll(".discount_final_price, .game_purchase_price")].find(isVisible);
+      const price = priceElement && priceFromElement(priceElement, section);
+      const score = scorePurchaseBlock(heading, appName, baseAppName, index);
+      return { section, heading, price, score };
+    }).filter((c) => c.price && c.score > 0);
 
-    if (baseGameSection) {
-      const priceElement = [...baseGameSection.querySelectorAll(".discount_final_price, .game_purchase_price")].find(isVisible);
-      const price = priceElement && priceFromElement(priceElement, baseGameSection);
-      if (price) return { ...price, anchor: getPurchaseBlock(baseGameSection) };
+    if (scoredCandidates.length) {
+      scoredCandidates.sort((a, b) => b.score - a.score);
+      const best = scoredCandidates[0];
+      return { ...best.price, anchor: getPurchaseBlock(best.section) };
     }
+
+    // Fallback: if exactly one candidate section has a valid price and is not an addon
+    const validFallbacks = candidateSections.map((section) => {
+      const heading = section.querySelector("h2.title, h1, h2")?.textContent || "";
+      if (isAddonText(normalizeTitle(heading))) return null;
+      const priceElement = [...section.querySelectorAll(".discount_final_price, .game_purchase_price")].find(isVisible);
+      const price = priceElement && priceFromElement(priceElement, section);
+      return price ? { section, price } : null;
+    }).filter(Boolean);
+
+    if (validFallbacks.length === 1) {
+      return { ...validFallbacks[0].price, anchor: getPurchaseBlock(validFallbacks[0].section) };
+    }
+
     return null;
   }
 
@@ -175,7 +247,7 @@
 
   function getAppId() { return location.pathname.match(/\/app\/(\d+)/)?.[1] || null; }
   function getAppTitle() {
-    return (document.querySelector(".apphub_AppName")?.textContent || document.title.replace(/\s+on Steam.*$/i, "")).replace(/\s+/g, " ").trim();
+    return (document.querySelector(".apphub_AppName")?.textContent || document.title.replace(/^(?:save\s+\d+%\s+on|сэкономьте\s+\d+%\s+(?:при покупке\s+)?|заощадьте\s+\d+%\s+(?:на\s+)?)/i, "").replace(/\s+on Steam.*$/i, "")).replace(/\s+/g, " ").trim();
   }
 
   function ensureWidget() {
@@ -409,7 +481,7 @@
     scheduleRender();
   }
 
-  const testExports = { parseNumber, isBaseGameHeading, machinePriceFrom, priceFromElement };
+  const testExports = { parseNumber, isBaseGameHeading, machinePriceFrom, priceFromElement, isBundleBlock, isSubscriptionBlock, scorePurchaseBlock };
   if (typeof module !== "undefined" && module.exports) module.exports = testExports;
   if (typeof document !== "undefined") initialize();
 })();

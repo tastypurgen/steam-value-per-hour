@@ -38,7 +38,7 @@ Official Firefox Add-ons page for optional Advanced mode:
 To build a valid `.zip` distribution file preserving forward-slash path separators and directory hierarchy:
 
 ```powershell
-tar -a -cf steam-value-per-hour-firefox-0.2.0.zip manifest.json background.js content.js options.html options.js options.css popup.html popup.js popup.css styles.css icons LICENSE PRIVACY.md
+tar -a -cf steam-value-per-hour-firefox-0.2.1.zip manifest.json background.js content.js options.html options.js options.css popup.html popup.js popup.css styles.css icons LICENSE PRIVACY.md
 ```
 
 To validate the package using Mozilla's official tools:
