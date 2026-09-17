@@ -3,6 +3,8 @@
 Firefox MV3 extension that calculates the cost of a Steam game per hour for
 `All PlayStyles`, `Main Story`, `Story and Extras`, and `Completionist`.
 
+<img width="980" height="172" alt="Screenshot1" src="https://github.com/user-attachments/assets/84c17282-add0-40c3-b55d-a355785f6eb5" />
+
 ## Modes
 
 Both modes use direct HowLongToBeat lookups from the Firefox background context,
