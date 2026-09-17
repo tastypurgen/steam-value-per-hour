@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #192b3d;
+  color: #d6d7d8;
+}
+
+body {
+  margin: 0;
+  min-block-size: 100vh;
+}
+
+.settings-card {
+  box-sizing: border-box;
+  margin: 3rem auto;
+  max-inline-size: 46rem;
+  padding: 2rem;
+  background: #223b52;
+  border: 1px solid #4b6a84;
+  border-radius: .5rem;
+}
+
+h1, h2 { color: #fff; }
+h1 { margin-block-start: 0; }
+h2 { font-size: 1rem; margin-block-start: 2rem; }
+.intro, .mode-option small { color: #b7c9d8; }
+
+fieldset {
+  border: 0;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+legend {
+  color: #8fcaee;
+  font-size: .8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.mode-option {
+  align-items: flex-start;
+  background: #1a3045;
+  border: 1px solid #43627c;
+  border-radius: .35rem;
+  cursor: pointer;
+  display: flex;
+  gap: .75rem;
+  margin-block-start: .75rem;
+  padding: 1rem;
+}
+
+.mode-option:has(input:checked) {
+  border-color: #67c1f5;
+  box-shadow: 0 0 0 1px #67c1f5;
+}
+
+.mode-option strong, .mode-option small { display: block; }
+.mode-option small { line-height: 1.45; margin-block-start: .35rem; }
+.save-status { color: #a4e67b; min-block-size: 1.3rem; }
+.dependencies li { margin-block: .7rem; }
+a { color: #67c1f5; }
+
+@media (max-width: 600px) {
+  .settings-card { margin: 0; min-block-size: 100vh; padding: 1.25rem; }
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam Value Per Hour settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main class="settings-card">
+    <h1>Steam Value Per Hour</h1>
+    <p class="intro">Choose where the HowLongToBeat and price-history information should come from.</p>
+
+    <form id="settings-form">
+      <fieldset>
+        <legend>Data mode</legend>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="standalone" checked>
+          <span>
+            <strong>Default (Independent) mode (recommended)</strong>
+            <small>Uses Steam’s current regional price and a direct HowLongToBeat lookup. It works without other extensions and does not show a record-price column.</small>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="advanced">
+          <span>
+            <strong>Advanced mode</strong>
+            <small>Reads the HLTB and SteamDB blocks already shown on the page by the extensions below. The record column uses SteamDB’s two-year low only; it never falls back to the all-time low.</small>
+          </span>
+        </label>
+      </fieldset>
+      <p id="save-status" class="save-status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section class="dependencies" aria-labelledby="dependencies-title">
+      <h2 id="dependencies-title">Optional extensions for Advanced mode</h2>
+      <ul>
+        <li><a href="https://addons.mozilla.org/en-US/firefox/addon/augmented-steam/" target="_blank" rel="noopener noreferrer">Augmented Steam on Firefox Add-ons</a> — enable its HowLongToBeat information.</li>
+        <li><a href="https://addons.mozilla.org/en-US/firefox/addon/steam-database/" target="_blank" rel="noopener noreferrer">SteamDB on Firefox Add-ons</a> — enable its Steam price-history block.</li>
+      </ul>
+    </section>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>

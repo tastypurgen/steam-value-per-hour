@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam Value Per Hour</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <img src="icons/icon-32.png" alt="" class="popup-icon" width="24" height="24">
+      <div class="popup-title-wrap">
+        <h1 class="popup-title">Steam Value Per Hour</h1>
+        <span class="popup-subtitle" id="subtitle-text">Price per hour for Steam</span>
+      </div>
+    </header>
+
+    <main>
+      <form id="mode-form">
+        <div class="section-label" id="mode-legend">Data Mode</div>
+
+        <div class="mode-cards">
+          <!-- Standalone / Default Mode -->
+          <label class="mode-card" for="mode-standalone">
+            <div class="mode-card-header">
+              <input type="radio" id="mode-standalone" name="mode" value="standalone" checked>
+              <div class="mode-title-group">
+                <span class="mode-name" id="mode-default-name">Default (Independent)</span>
+                <span class="mode-badge badge-recommended" id="mode-default-badge">Recommended</span>
+              </div>
+            </div>
+            <p class="mode-desc" id="mode-default-desc">
+              Direct HowLongToBeat lookup. Works without any other extensions and uses Steam's current regional price.
+            </p>
+          </label>
+
+          <!-- Advanced Mode -->
+          <label class="mode-card" for="mode-advanced">
+            <div class="mode-card-header">
+              <input type="radio" id="mode-advanced" name="mode" value="advanced">
+              <div class="mode-title-group">
+                <span class="mode-name" id="mode-advanced-name">Advanced</span>
+                <span class="mode-badge badge-advanced" id="mode-advanced-badge">SteamDB + HLTB</span>
+              </div>
+            </div>
+            <p class="mode-desc" id="mode-advanced-desc">
+              Reads HLTB and SteamDB blocks rendered on the store page. Shows SteamDB's 2-year low record price.
+            </p>
+          </label>
+        </div>
+
+        <div id="advanced-deps" class="advanced-deps" hidden>
+          <div class="deps-title" id="deps-title">Requires page extensions:</div>
+          <ul class="deps-list">
+            <li>
+              <a href="https://addons.mozilla.org/firefox/addon/augmented-steam/" target="_blank" rel="noopener noreferrer">Augmented Steam</a>
+              <span class="dep-hint" id="dep-as-hint">(for HLTB block)</span>
+            </li>
+            <li>
+              <a href="https://addons.mozilla.org/firefox/addon/steam-database/" target="_blank" rel="noopener noreferrer">SteamDB</a>
+              <span class="dep-hint" id="dep-sdb-hint">(for 2-year low)</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="status-bar">
+          <span id="save-status" class="save-status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+    </main>
+
+    <footer class="popup-footer">
+      <a href="#" id="open-options" class="options-link">⚙ <span id="options-link-text">Full settings</span></a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
