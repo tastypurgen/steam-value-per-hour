@@ -98,22 +98,22 @@
     return null;
   }
 
-  function getSteamDbPrice() {
-    const priceElements = [...document.querySelectorAll(".steamdb_prices, .steamdb_prices_top")];
-    const textCandidates = [...document.querySelectorAll("*")].filter((element) => {
-      const text = (element.textContent || "").replace(/\s+/g, " ").trim();
-      return /SteamDB lowest recorded price is/i.test(text) && ![...element.children].some((child) => /SteamDB lowest recorded price is/i.test(child.textContent || ""));
-    });
-    const candidates = [...new Set([...priceElements, ...textCandidates])];
+  function getSteamDbPrice(basePrice = null) {
+    const candidates = [
+      ...document.querySelectorAll(".steamdb_prices, .steamdb_prices_top"),
+      ...[...document.querySelectorAll("*")].filter((el) => {
+        const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+        return /SteamDB lowest recorded price is/i.test(text) && ![...el.children].some((c) => /SteamDB lowest recorded price is/i.test(c.textContent || ""));
+      })
+    ];
 
     for (const anchor of candidates.filter(isVisible)) {
       const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-      const twoYearLow = text.match(/2-year low is\s+(.+?)(?=\s+(?:Price seen|last on)|$)/i)?.[1];
-      const recordedLow = text.match(/SteamDB lowest recorded price is\s+(.+?)(?=\s+and\s+2-year low is|\s+(?:Price seen|last on)|$)/i)?.[1];
-      const label = (twoYearLow || recordedLow)?.replace(/\s+at\s+-?\d+%.*$/i, "").trim();
-      if (!label) continue;
+      const raw = text.match(/2-year low is\s+([^()]+?)(?=\s+at|\s+and|\s+last|\s+Price|\(|$)/i)?.[1]
+        || text.match(/lowest recorded price is\s+([^()]+?)(?=\s+at|\s+and|\s+last|\s+Price|\(|$)/i)?.[1];
+      if (!raw) continue;
 
-      const numericPart = label.match(/[\d\s\u00a0.,]+/)?.[0];
+      const numericPart = raw.match(/[\d\s\u00a0.,]+/)?.[0];
       const amount = numericPart ? parseNumber(numericPart) : NaN;
       if (!Number.isFinite(amount) || amount <= 0) continue;
 
@@ -123,17 +123,18 @@
         if (!/SteamDB lowest recorded price is/i.test(parentText) && !block.parentElement.querySelector(".steamdb_prices")) break;
         block = block.parentElement;
       }
-      return { amount, currency: label.replace(numericPart, "").trim(), anchor: getPurchaseBlock(block) };
+      return { amount, currency: basePrice?.currency || "", anchor: getPurchaseBlock(block) };
     }
     return null;
   }
-
 
   function formatAmount(amount) {
     return new Intl.NumberFormat(document.documentElement.lang || undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(amount);
   }
 
-  function formatPrice({ amount, currency }) { return `${formatAmount(amount)}${currency || ""}`; }
+  function formatPrice({ amount, currency }) {
+    return `${formatAmount(amount)}${currency || ""}`;
+  }
 
   function getAppId() { return location.pathname.match(/\/app\/(\d+)/)?.[1] || null; }
   function getAppTitle() {
@@ -220,8 +221,7 @@
       table.appendChild(thead);
 
       const tbody = document.createElement("tbody");
-      const currentCurrency = price.currency ? ` ${price.currency}` : "";
-      const recordCurrency = recordPrice?.currency ? ` ${recordPrice.currency}` : "";
+      const currency = price.currency ? ` ${price.currency}` : "";
 
       for (const { displayLabel, hours } of metrics) {
         const tr = document.createElement("tr");
@@ -234,13 +234,13 @@
         tdHours.textContent = `${formatAmount(hours)} h`;
 
         const tdCurrent = document.createElement("td");
-        tdCurrent.textContent = `${formatAmount(price.amount / hours)}${currentCurrency}/h`;
+        tdCurrent.textContent = `${formatAmount(price.amount / hours)}${currency}/h`;
 
         tr.append(th, tdHours, tdCurrent);
 
         if (recordMode) {
           const tdRecord = document.createElement("td");
-          tdRecord.textContent = `${formatAmount(recordPrice.amount / hours)}${recordCurrency}/h`;
+          tdRecord.textContent = `${formatAmount(recordPrice.amount / hours)}${currency}/h`;
           tr.appendChild(tdRecord);
         }
 
@@ -267,7 +267,7 @@
         renderStatus(price, "All metrics are hidden in extension settings.");
         return true;
       }
-      const recordPrice = settings.mode === "advanced" ? getSteamDbPrice() : null;
+      const recordPrice = settings.mode === "advanced" ? getSteamDbPrice(price) : null;
       renderTable({ price, recordPrice, metrics: activeMetrics });
       return true;
     }
