@@ -1,0 +1,70 @@
+.svph-widget {
+  background: linear-gradient(90deg, rgba(38, 95, 138, .42), rgba(20, 39, 57, .42));
+  border-left: 3px solid #67c1f5;
+  box-sizing: border-box;
+  color: #d6d7d8;
+  margin-top: 8px;
+  max-width: 100%;
+  padding: 7px 9px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.svph-widget * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.svph-title {
+  color: #8f98a0;
+  font-size: 12px;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.svph-widget table {
+  border-collapse: collapse;
+  table-layout: auto;
+  width: 100%;
+}
+
+.svph-widget th,
+.svph-widget td {
+  padding: 3px 8px 3px 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.svph-widget thead th {
+  color: #8f98a0;
+  font-size: 10px;
+  font-weight: normal;
+  text-transform: uppercase;
+}
+
+.svph-widget th:first-child,
+.svph-widget tbody th {
+  text-align: left;
+}
+
+.svph-widget th:last-child,
+.svph-widget td:last-child {
+  padding: 0;
+}
+
+.svph-widget tbody th {
+  color: #d6d7d8;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.svph-widget tbody td {
+  color: #b5e7ff;
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .svph-widget {
+    overflow-x: auto;
+  }
+}

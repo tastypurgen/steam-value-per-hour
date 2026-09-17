@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Steam Value Per Hour",
+  "version": "0.1.0",
+  "description": "Shows the current Steam price per HowLongToBeat Main Story hour.",
+  "content_scripts": [
+    {
+      "matches": ["https://store.steampowered.com/app/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
