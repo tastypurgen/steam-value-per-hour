@@ -35,10 +35,10 @@ Official Firefox Add-ons page for optional Advanced mode:
 
 ## Packaging for Firefox Add-ons (AMO)
 
-To build a valid `.zip` distribution file preserving forward-slash path separators and directory hierarchy:
+To build a valid `.zip` distribution file (use Python, not Windows `tar`, whose zips are rejected by AMO with "Invalid or corrupt add-on file"):
 
-```powershell
-tar -a -cf steam-value-per-hour-firefox-0.2.2.zip manifest.json background.js content.js options.html options.js options.css popup.html popup.js popup.css styles.css icons LICENSE PRIVACY.md
+```bash
+python -c "import zipfile,os; files=['manifest.json','background.js','content.js','options.html','options.js','options.css','popup.html','popup.js','popup.css','styles.css','LICENSE','PRIVACY.md']; z=zipfile.ZipFile('steam-value-per-hour-firefox-0.2.2.zip','w',zipfile.ZIP_DEFLATED); [z.write(f) for f in files]; [z.write(os.path.join('icons',i),'icons/'+i) for i in sorted(os.listdir('icons'))]; z.close()"
 ```
 
 To validate the package using Mozilla's official tools:
