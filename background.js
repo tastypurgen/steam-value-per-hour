@@ -3,6 +3,7 @@
   const HLTB_INIT_URL = "https://howlongtobeat.com/api/search/site/init";
   const HLTB_SEARCH_URL = "https://howlongtobeat.com/api/search/site";
   const HLTB_GAME_URL = "https://howlongtobeat.com/game/";
+  const HLTB_ORIGIN_PATTERN = "https://howlongtobeat.com/*";
   const CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
   const FAILURE_TTL = 15 * 60 * 1000;
   const inFlight = new Map();
@@ -307,7 +308,21 @@
     return value;
   }
 
+  async function hasHostPermission() {
+    try {
+      const granted = await api?.permissions?.contains?.({ origins: [HLTB_ORIGIN_PATTERN] });
+      return granted !== false;
+    } catch {
+      return true;
+    }
+  }
+
   async function handleMessage(message, sender) {
+    // HLTB's API sends no CORS headers, so without the granted host permission
+    // Firefox blocks reading every response before the server is even reached.
+    if (!(await hasHostPermission())) {
+      return { ok: false, reason: "no-permission" };
+    }
     const appId = String(message.appId);
     const title = String(message.title).trim().slice(0, 160);
     const isPrivate = sender?.tab?.incognito === true;
@@ -321,7 +336,26 @@
     return inFlight.get(key);
   }
 
+  // HLTB's server returns 403 for requests without a site Referer, and Firefox
+  // ignores the fetch referrer option from extension backgrounds, so the header
+  // has to be forced onto outgoing requests via blocking webRequest.
+  if (api?.webRequest?.onBeforeSendHeaders) {
+    api.webRequest.onBeforeSendHeaders.addListener(
+      (details) => {
+        const requestHeaders = (details.requestHeaders || []).filter((header) => header.name.toLowerCase() !== "referer");
+        requestHeaders.push({ name: "Referer", value: "https://howlongtobeat.com/" });
+        return { requestHeaders };
+      },
+      { urls: [HLTB_ORIGIN_PATTERN] },
+      ["blocking", "requestHeaders"]
+    );
+  }
+
   api?.runtime?.onMessage?.addListener((message, sender) => {
+    if (message?.type === "open-options") {
+      api?.runtime?.openOptionsPage?.();
+      return;
+    }
     if (!message || message.type !== "get-hltb" || !/^\d+$/.test(String(message.appId || "")) || !message.title) {
       return; // Return undefined synchronously so other listeners or internal messaging are not blocked
     }

@@ -85,5 +85,40 @@
     });
   }
 
+  const HLTB_ORIGIN_PATTERN = "https://howlongtobeat.com/*";
+  const accessSection = document.getElementById("hltb-access-section");
+  const grantButton = document.getElementById("grant-hltb");
+
+  async function loadAccess() {
+    // The section only appears when access is missing; the granted state needs no UI.
+    if (!api?.permissions || !accessSection) {
+      if (accessSection) accessSection.hidden = true;
+      return;
+    }
+    try {
+      accessSection.hidden = await api.permissions.contains({ origins: [HLTB_ORIGIN_PATTERN] });
+    } catch {
+      accessSection.hidden = true;
+    }
+  }
+
+  grantButton?.addEventListener("click", async () => {
+    if (!api?.permissions) return;
+    grantButton.disabled = true;
+    try {
+      const granted = await api.permissions.request({ origins: [HLTB_ORIGIN_PATTERN] });
+      if (accessSection) accessSection.hidden = granted;
+      showStatus(granted ? "Access granted. Reload Steam store pages to see results." : "Access was not granted.");
+    } catch {
+      showStatus("Could not request access.");
+    } finally {
+      grantButton.disabled = false;
+    }
+  });
+
+  if (api?.permissions?.onAdded) api.permissions.onAdded.addListener(() => loadAccess());
+  if (api?.permissions?.onRemoved) api.permissions.onRemoved.addListener(() => loadAccess());
+  loadAccess();
+
   load();
 })();

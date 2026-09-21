@@ -67,6 +67,18 @@ legend {
 .dependencies li { margin-block: .7rem; }
 a { color: #67c1f5; }
 
+.grant-button {
+  background: #67c1f5;
+  border: 0;
+  border-radius: .35rem;
+  color: #10202e;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: .5rem 1rem;
+}
+.grant-button[disabled] { cursor: default; opacity: .55; }
+
 @media (max-width: 600px) {
   .settings-card { margin: 0; min-block-size: 100vh; padding: 1.25rem; }
 }

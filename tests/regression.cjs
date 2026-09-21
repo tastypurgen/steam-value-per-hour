@@ -45,12 +45,12 @@ test('subscription block detection recognizes ea play or subscription dropdown',
   assert.equal(content.isSubscriptionBlock(elStandard), false);
 });
 test('machine price retains displayed currency',()=>{const el={textContent:'59,99 zł',hasAttribute:k=>k==='data-price-final',getAttribute:k=>k==='data-price-final'?'5999':null};assert.deepEqual(content.priceFromElement(el,el),{amount:59.99,currency:'zł'});});
-function background(searchResponse,initial={}){
- const stored={...initial},calls=[],timers=[];let handler;let writes=0;
- const browser={runtime:{onMessage:{addListener:f=>handler=f}},storage:{local:{get:async k=>k===null?{...stored}:{[k]:stored[k]},set:async v=>{writes++;Object.assign(stored,v)},remove:async keys=>{for(const k of [].concat(keys))delete stored[k]}}}};
+function background(searchResponse,initial={},permissions){
+ const stored={...initial},calls=[],timers=[];let handler;let writes=0;let optionsOpened=0;
+ const browser={runtime:{openOptionsPage:()=>{optionsOpened++},onMessage:{addListener:f=>handler=f}},permissions,storage:{local:{get:async k=>k===null?{...stored}:{[k]:stored[k]},set:async v=>{writes++;Object.assign(stored,v)},remove:async keys=>{for(const k of [].concat(keys))delete stored[k]}}}};
  const context={browser,AbortSignal,setTimeout:f=>{timers.push(1);f()},fetch:async(url,options)=>{calls.push({url,options});return url.includes('/init')?{ok:true,json:async()=>({token:'t',hpKey:'k',hpVal:'v'})}:searchResponse;}};
  vm.runInNewContext(fs.readFileSync(path.join(root,'background.js'),'utf8'),context);
- return {send:(privateTab=false)=>handler({type:'get-hltb',appId:'123',title:'Example'},{tab:{incognito:privateTab}}),stored,calls,timers,get writes(){return writes}};
+ return {send:(privateTab=false)=>handler({type:'get-hltb',appId:'123',title:'Example'},{tab:{incognito:privateTab}}),raw:(message,sender)=>handler(message,sender),stored,calls,timers,get writes(){return writes},get optionsOpened(){return optionsOpened}};
 }
 const success={ok:true,json:async()=>({data:[{game_id:1,profile_steam:123,game_name:'Example',comp_main:36000}]})};
 test('private requests never persist and do not join ordinary lookup',async()=>{const b=background(success);await b.send(true);assert.equal(b.writes,0);assert.deepEqual(Object.keys(b.stored),[]);await b.send();assert.equal(b.writes,1);assert.equal(b.calls.filter(c=>!c.url.includes('/init')).length,2)});
@@ -59,5 +59,7 @@ test('HTTP 503 bounded retries without negative caching',async()=>{const b=backg
 test('long Retry-After does not retry early',async()=>{const b=background({ok:false,status:429,headers:{get:()=> '120'}});assert.equal((await b.send()).reason,'service-error');assert.equal(b.calls.length,2);assert.equal(b.timers.length,0)});
 test('malformed response not cached as absent game',async()=>{const b=background({ok:true,json:async()=>({error:'unavailable'})});assert.equal((await b.send()).reason,'service-error');assert.equal(b.writes,0)});
 test('genuine no-match is cached',async()=>{const b=background({ok:true,json:async()=>({data:[]})});assert.equal((await b.send()).reason,'no-id-match');assert.equal(b.writes,1)});
+test('missing host permission short-circuits without network or caching',async()=>{const b=background(success,{}, {contains:async()=>false});assert.equal((await b.send()).reason,'no-permission');assert.equal(b.calls.length,0);assert.equal(b.writes,0)});
+test('open-options message opens the options page',async()=>{const b=background(success);b.raw({type:'open-options'},{});assert.equal(b.optionsOpened,1);b.raw({type:'get-hltb',appId:'123',title:'Example'},{});assert.equal(b.optionsOpened,1)});
 test('all runtime JavaScript parses',()=>{for(const file of ['background.js','content.js','popup.js','options.js'])new vm.Script(fs.readFileSync(path.join(root,file),'utf8'))});
 test('data transmission declared',()=>{const m=JSON.parse(fs.readFileSync(path.join(root,'manifest.json')));assert.deepEqual(m.browser_specific_settings.gecko.data_collection_permissions.required,['websiteContent','browsingActivity'])});

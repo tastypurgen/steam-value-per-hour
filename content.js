@@ -291,6 +291,15 @@
           requestHltb();
         }, { once: true });
         children.push(retryButton);
+      } else if (hltbData?.reason === "no-permission") {
+        const grantButton = document.createElement("button");
+        grantButton.type = "button";
+        grantButton.className = "svph-retry";
+        grantButton.textContent = "Open settings to grant access";
+        grantButton.addEventListener("click", () => {
+          api?.runtime?.sendMessage?.({ type: "open-options" })?.catch?.(() => {});
+        }, { once: true });
+        children.push(grantButton);
       }
       widget.replaceChildren(...children);
       lastSignature = signature;
@@ -397,9 +406,11 @@
     }
     const message = hltbData?.reason === "no-id-match"
       ? "No HowLongToBeat result with a confirmed Steam AppID match was found."
-      : hltbData?.reason === "service-error"
-        ? "HowLongToBeat is temporarily unavailable."
-        : "Loading HowLongToBeat data…";
+      : hltbData?.reason === "no-permission"
+        ? "Access to HowLongToBeat is not granted in the extension permissions."
+        : hltbData?.reason === "service-error"
+          ? "HowLongToBeat is temporarily unavailable."
+          : "Loading HowLongToBeat data…";
     renderStatus(price, message);
     return false;
   }
