@@ -59,6 +59,39 @@ test('HTTP 503 bounded retries without negative caching',async()=>{const b=backg
 test('long Retry-After does not retry early',async()=>{const b=background({ok:false,status:429,headers:{get:()=> '120'}});assert.equal((await b.send()).reason,'service-error');assert.equal(b.calls.length,2);assert.equal(b.timers.length,0)});
 test('malformed response not cached as absent game',async()=>{const b=background({ok:true,json:async()=>({error:'unavailable'})});assert.equal((await b.send()).reason,'service-error');assert.equal(b.writes,0)});
 test('genuine no-match is cached',async()=>{const b=background({ok:true,json:async()=>({data:[]})});assert.equal((await b.send()).reason,'no-id-match');assert.equal(b.writes,1)});
+test('cached failure is reused for the same title but retried for another one',async()=>{
+  const b=background({ok:true,json:async()=>({data:[]})});
+  assert.equal((await b.send()).reason,'no-id-match');
+  const first=b.calls.length;
+  assert.equal((await b.send()).source,'cache');
+  assert.equal(b.calls.length,first);
+  assert.equal((await b.raw({type:'get-hltb',appId:'123',title:'Другое название'},{tab:{}})).reason,'no-id-match');
+  assert.ok(b.calls.length>first,'expected a fresh HLTB search for the new title');
+});
+test('cached success is reused regardless of page title language',async()=>{
+  const b=background(success);
+  assert.equal((await b.send()).ok,true);
+  const count=b.calls.length;
+  assert.equal((await b.raw({type:'get-hltb',appId:'123',title:'Пример'},{tab:{}})).source,'cache');
+  assert.equal(b.calls.length,count);
+});
+test('non-Latin titles are detected for the HLTB English fallback',()=>{
+  assert.equal(content.hasNonLatinTitle('Альфред Хичкок: «Головокружение»'),true);
+  assert.equal(content.hasNonLatinTitle('ペルソナ'),true);
+  assert.equal(content.hasNonLatinTitle('Alfred Hitchcock - Vertigo'),false);
+  assert.equal(content.hasNonLatinTitle('Brütal Legend'),false);
+});
+test('english title resolver reads the appdetails name and fails soft',async()=>{
+  const original=globalThis.fetch;
+  const requested=[];
+  globalThis.fetch=async(url)=>{requested.push(url);return {ok:true,json:async()=>({'1449320':{success:true,data:{name:'Alfred Hitchcock - Vertigo'}}})};};
+  try { assert.equal(await content.fetchEnglishTitle('1449320'),'Alfred Hitchcock - Vertigo'); }
+  finally { globalThis.fetch=original; }
+  assert.ok(requested[0].includes('appids=1449320') && requested[0].includes('l=english'),requested[0]);
+  globalThis.fetch=async()=>{throw new Error('offline')};
+  try { assert.equal(await content.fetchEnglishTitle('1449320'),null); }
+  finally { globalThis.fetch=original; }
+});
 test('missing host permission short-circuits without network or caching',async()=>{const b=background(success,{}, {contains:async()=>false});assert.equal((await b.send()).reason,'no-permission');assert.equal(b.calls.length,0);assert.equal(b.writes,0)});
 test('open-options message opens the options page',async()=>{const b=background(success);b.raw({type:'open-options'},{});assert.equal(b.optionsOpened,1);b.raw({type:'get-hltb',appId:'123',title:'Example'},{});assert.equal(b.optionsOpened,1)});
 test('all runtime JavaScript parses',()=>{for(const file of ['background.js','content.js','popup.js','options.js'])new vm.Script(fs.readFileSync(path.join(root,file),'utf8'))});

@@ -1,6 +1,9 @@
 # Build and distribution archives
 *.zip
 web-ext-artifacts/
+dist/
+.zcode/
+_metadata/
 
 # Dependency and cache directories
 node_modules/

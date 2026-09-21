@@ -99,5 +99,12 @@
     }
   });
 
+  try {
+    const versionElement = document.getElementById("popup-version");
+    if (versionElement) versionElement.textContent = `v${api.runtime.getManifest().version}`;
+  } catch {
+    // getManifest is unavailable outside an extension context; leave the badge empty
+  }
+
   loadSettings();
 })();

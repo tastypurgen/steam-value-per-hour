@@ -1,10 +1,19 @@
 {
   "manifest_version": 3,
   "name": "Steam Value Per Hour",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "description": "Shows Steam price per hour using HowLongToBeat data and optional SteamDB price history.",
-  "permissions": ["storage", "webRequest", "webRequestBlocking"],
+  "permissions": ["storage", "declarativeNetRequest"],
   "host_permissions": ["https://howlongtobeat.com/*"],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "hltb_referer",
+        "enabled": true,
+        "path": "rules/hltb-referer.json"
+      }
+    ]
+  },
   "background": {
     "scripts": ["background.js"]
   },

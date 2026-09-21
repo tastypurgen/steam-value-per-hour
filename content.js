@@ -250,6 +250,23 @@
     return (document.querySelector(".apphub_AppName")?.textContent || document.title.replace(/^(?:save\s+\d+%\s+on|сэкономьте\s+\d+%\s+(?:при покупке\s+)?|заощадьте\s+\d+%\s+(?:на\s+)?)/i, "").replace(/\s+on Steam.*$/i, "")).replace(/\s+/g, " ").trim();
   }
 
+  // Scripts HLTB's (English) catalogue never matches: Cyrillic, Greek, Hebrew,
+  // Arabic, Devanagari, Thai, kana, hanzi, hangul.
+  const NON_LATIN_TITLE = /[\u0370-\u03ff\u0400-\u04ff\u0590-\u05ff\u0600-\u06ff\u0900-\u097f\u0e00-\u0e7f\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/;
+
+  async function fetchEnglishTitle(appId) {
+    // Same-origin for store pages, so no extra host permission is needed.
+    try {
+      const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}&l=english`, { credentials: "omit" });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const name = data?.[String(appId)]?.data?.name;
+      return typeof name === "string" && name.trim() ? name.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
   function ensureWidget() {
     let widget = document.getElementById(WIDGET_ID);
     if (!widget) { widget = document.createElement("section"); widget.id = WIDGET_ID; widget.className = "svph-widget"; }
@@ -430,13 +447,32 @@
   async function requestHltb() {
     if (!api?.runtime?.sendMessage) return;
     const appId = getAppId();
-    const title = getAppTitle();
-    if (!appId || !title) return;
+    const localTitle = getAppTitle();
+    if (!appId || !localTitle) return;
+
+    // A localized title never matches HLTB's catalogue, so resolve the English
+    // name up front for non-Latin pages instead of spending a doomed search.
+    let title = localTitle;
+    if (NON_LATIN_TITLE.test(localTitle)) {
+      title = (await fetchEnglishTitle(appId)) || localTitle;
+    }
     const key = `${appId}|${title}`;
     if (hltbRequestKey === key) return;
     hltbRequestKey = key;
     try { hltbData = await api.runtime.sendMessage({ type: "get-hltb", appId, title }); }
     catch { hltbData = { ok: false, reason: "service-error" }; }
+    scheduleRender();
+
+    // Titles that are Latin but still miss (diacritics stripped by cleaning,
+    // transliterated editions) get one retry with the canonical English name.
+    if (hltbData?.reason !== "no-id-match") return;
+    const english = await fetchEnglishTitle(appId);
+    if (!english || normalizeTitle(english) === normalizeTitle(title)) return;
+    const englishKey = `${appId}|${english}`;
+    if (englishKey === hltbRequestKey) return;
+    hltbRequestKey = englishKey;
+    try { hltbData = await api.runtime.sendMessage({ type: "get-hltb", appId, title: english }); }
+    catch { /* keep the previous result on screen */ }
     scheduleRender();
   }
 
@@ -492,7 +528,7 @@
     scheduleRender();
   }
 
-  const testExports = { parseNumber, isBaseGameHeading, machinePriceFrom, priceFromElement, isBundleBlock, isSubscriptionBlock, scorePurchaseBlock };
+  const testExports = { parseNumber, isBaseGameHeading, machinePriceFrom, priceFromElement, isBundleBlock, isSubscriptionBlock, scorePurchaseBlock, hasNonLatinTitle: (value) => NON_LATIN_TITLE.test(value), fetchEnglishTitle };
   if (typeof module !== "undefined" && module.exports) module.exports = testExports;
   if (typeof document !== "undefined") initialize();
 })();

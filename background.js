@@ -285,7 +285,12 @@
     const stored = await api.storage.local.get(key);
     const value = stored?.[key];
     if (!value || !shouldPersistResult(value)) return null;
-    if (Date.now() - value.cachedAt > (value.ok ? CACHE_TTL : FAILURE_TTL) || normalize(value.title) !== normalize(title)) {
+    // Matches are confirmed by Steam AppID, so a hit stays valid whatever title
+    // the current page language produced; a failed search only serves the same
+    // title so another language can still retry with its own.
+    const expired = Date.now() - value.cachedAt > (value.ok ? CACHE_TTL : FAILURE_TTL);
+    const titleChanged = !value.ok && normalize(value.title) !== normalize(title);
+    if (expired || titleChanged) {
       api.storage.local.remove(key).catch(() => {});
       return null;
     }
@@ -334,21 +339,6 @@
     const key = `hltb:v3:${appId}`;
     if (!inFlight.has(key)) inFlight.set(key, fetchAndCache(key, appId, title).finally(() => inFlight.delete(key)));
     return inFlight.get(key);
-  }
-
-  // HLTB's server returns 403 for requests without a site Referer, and Firefox
-  // ignores the fetch referrer option from extension backgrounds, so the header
-  // has to be forced onto outgoing requests via blocking webRequest.
-  if (api?.webRequest?.onBeforeSendHeaders) {
-    api.webRequest.onBeforeSendHeaders.addListener(
-      (details) => {
-        const requestHeaders = (details.requestHeaders || []).filter((header) => header.name.toLowerCase() !== "referer");
-        requestHeaders.push({ name: "Referer", value: "https://howlongtobeat.com/" });
-        return { requestHeaders };
-      },
-      { urls: [HLTB_ORIGIN_PATTERN] },
-      ["blocking", "requestHeaders"]
-    );
   }
 
   api?.runtime?.onMessage?.addListener((message, sender) => {
